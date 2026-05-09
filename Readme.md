@@ -17,7 +17,7 @@ Map APIs built on [OpenStreetMap](https://www.openstreetmap.org/) data. Display 
 | **Elevation** | Elevation data for coordinates and route profiles | [→](https://docs.maptoolkit.net/elevation-api/) |
 | **Isochrone** | Reachable areas within a given travel time | [→](https://docs.maptoolkit.net/isochrone-api/) |
 | **Map Matching** | Snap GPS tracks to the road network | [→](https://docs.maptoolkit.net/map-matching-api/) |
-| **Static Maps** | Server-side map image generation (JPEG, PNG, WebP) | [→](https://docs.maptoolkit.net/static-maps-api/) |
+| **Static Maps** | Server-side map image generation (screen-res, Retina, printable) | [→](https://docs.maptoolkit.net/static-maps-api/) |
 | **Weather** | Weather forecasts and map overlays | [→](https://docs.maptoolkit.net/weather-api/) |
 | **Data Connectors** | Serve your own data as vector tiles | [→](https://docs.maptoolkit.net/data-connectors/) |
 
