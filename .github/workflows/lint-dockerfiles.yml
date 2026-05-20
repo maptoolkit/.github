@@ -1,0 +1,47 @@
+name: Lint Dockerfiles (Info Only)
+
+on:
+  workflow_call:
+    inputs:
+      base-ref:
+        type: string
+        default: 'origin/main'
+        description: 'Base branch to compare against for changed files'
+
+jobs:
+  lint-dockerfiles:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find changed Dockerfiles
+        id: changed-files
+        run: |
+          # Get list of changed files compared to base ref
+          DOCKERFILES=$(git diff ${{ inputs.base-ref }}...HEAD --name-only | grep -E '(Dockerfile|Dockerfile\.)' || echo "")
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$DOCKERFILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ -z "$DOCKERFILES" ]; then
+            echo "No Dockerfiles changed"
+            exit 0
+          fi
+          echo "Found changed Dockerfiles:"
+          echo "$DOCKERFILES"
+
+      - name: Lint Dockerfiles using Hadolint
+        if: steps.changed-files.outputs.files != ''
+        run: |
+          DOCKERFILES="${{ steps.changed-files.outputs.files }}"
+
+          while IFS= read -r dockerfile; do
+            [ -z "$dockerfile" ] && continue
+            echo ""
+            echo "━━━ Linting: $dockerfile ━━━"
+            docker run --rm -i hadolint/hadolint < "$dockerfile" || true
+          done <<< "$DOCKERFILES"
