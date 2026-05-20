@@ -34,7 +34,7 @@ jobs:
           echo "Found changed Dockerfiles:"
           echo "$DOCKERFILES"
 
-      - name: Run Hadolint
+      - name: Lint Dockerfiles using Hadolint
         if: steps.changed-files.outputs.files != ''
         run: |
           DOCKERFILES="${{ steps.changed-files.outputs.files }}"
