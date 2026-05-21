@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      type:
+        description: 'Release type'
+        type: string
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate input
+        run: |
+          if [[ ! "${{ inputs.type }}" =~ ^(patch|minor|major)$ ]]; then
+            echo "Invalid release type: '${{ inputs.type }}' — must be patch, minor or major"
+            exit 1
+          fi
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        run: npm version ${{ inputs.type }} --no-git-tag-version
+
+      - name: Generate changelog entry
+        id: changelog
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          DATE=$(date +%Y-%m-%d)
+          REPO="${{ github.event.repository.name }}"
+          PREV_TAG=$(git tag --sort=-v:refname | head -1)
+
+          ENTRIES=""
+          while IFS='|' read msg sha; do
+            msg="${msg^}"
+            if [[ $msg =~ \#([0-9]+) ]]; then
+              pr_num="${BASH_REMATCH[1]}"
+              author=$(gh api repos/maptoolkit/$REPO/pulls/$pr_num -q '.user.login' 2>/dev/null || echo "")
+              msg_clean=$(echo "$msg" | sed -E "s/ ?#[0-9]+//")
+              if [ -n "$author" ]; then
+                ENTRIES="$ENTRIES\n- $msg_clean by [@$author](https://github.com/$author) in [#$pr_num](https://github.com/maptoolkit/$REPO/pull/$pr_num)"
+              else
+                ENTRIES="$ENTRIES\n- $msg_clean in [#$pr_num](https://github.com/maptoolkit/$REPO/pull/$pr_num)"
+              fi
+            else
+              ENTRIES="$ENTRIES\n- $msg [$sha](https://github.com/maptoolkit/$REPO/commit/$sha)"
+            fi
+          done < <(git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=format:"%s|%h" --no-merges)
+
+          [ -z "$ENTRIES" ] && ENTRIES="\n- (no changes)"
+
+          ENTRY="## [${TAG}] - ${DATE}\n${ENTRIES}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          {
+            echo "entry<<EOF"
+            printf "%b" "$ENTRY"
+            echo ""
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            TEMP=$(mktemp)
+            head -1 CHANGELOG.md > "$TEMP"
+            printf "\n%b\n" "${{ steps.changelog.outputs.entry }}" >> "$TEMP"
+            tail -n +2 CHANGELOG.md >> "$TEMP"
+            mv "$TEMP" CHANGELOG.md
+          else
+            printf "# Changelog\n\n%b\n" "${{ steps.changelog.outputs.entry }}" > CHANGELOG.md
+          fi
+
+      - name: Commit, tag and push
+        run: |
+          git add package.json CHANGELOG.md
+          git commit -m "${{ steps.changelog.outputs.tag }}"
+          git tag "${{ steps.changelog.outputs.tag }}"
+          git push origin main --tags
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.changelog.outputs.tag }}" \
+            --title "${{ steps.changelog.outputs.tag }}" \
+            --notes "${{ steps.changelog.outputs.entry }}"
