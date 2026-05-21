@@ -19,6 +19,13 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Validate input
+        run: |
+          if [[ ! "${{ inputs.type }}" =~ ^(patch|minor|major)$ ]]; then
+            echo "Invalid release type: '${{ inputs.type }}' — must be patch, minor or major"
+            exit 1
+          fi
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
