@@ -64,7 +64,7 @@ jobs:
 
           [ -z "$ENTRIES" ] && ENTRIES="\n- (no changes)"
 
-          ENTRY="## [${TAG}] - ${DATE}\n${ENTRIES}"
+          ENTRY="## ${TAG} - ${DATE}\n${ENTRIES}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           {
             echo "entry<<EOF"
