@@ -64,11 +64,15 @@ jobs:
 
           [ -z "$ENTRIES" ] && ENTRIES="\n- (no changes)"
 
-          ENTRY="## [${TAG}] - ${DATE}\n${ENTRIES}"
+          ENTRY="## ${TAG} - ${DATE}\n${ENTRIES}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           {
             echo "entry<<EOF"
             printf "%b" "$ENTRY"
+            echo ""
+            echo "EOF"
+            echo "notes<<EOF"
+            printf "%b" "$ENTRIES"
             echo ""
             echo "EOF"
           } >> $GITHUB_OUTPUT
@@ -98,4 +102,4 @@ jobs:
         run: |
           gh release create "${{ steps.changelog.outputs.tag }}" \
             --title "${{ steps.changelog.outputs.tag }}" \
-            --notes "${{ steps.changelog.outputs.entry }}"
+            --notes "${{ steps.changelog.outputs.notes }}"
