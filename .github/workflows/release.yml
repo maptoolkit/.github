@@ -7,10 +7,16 @@ on:
         description: 'Release type'
         type: string
         required: true
+    outputs:
+      tag:
+        description: 'The created release tag (e.g. v1.2.3)'
+        value: ${{ jobs.release.outputs.tag }}
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.changelog.outputs.tag }}
     permissions:
       contents: write
       pull-requests: read
