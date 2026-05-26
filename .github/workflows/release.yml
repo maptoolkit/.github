@@ -47,10 +47,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          TAG="v${VERSION}"
+          TAG="v${VERSION#v}"
           DATE=$(date +%Y-%m-%d)
           REPO="${{ github.event.repository.name }}"
-          PREV_TAG=$(git tag --sort=-v:refname | head -1)
+          PREV_TAG=$(git tag --sort=-v:refname --list 'v*' | head -1)
 
           ENTRIES=""
           while IFS='|' read msg sha; do
