@@ -48,6 +48,12 @@ jobs:
           ENTRIES=""
           while IFS='|' read msg sha; do
             msg="${msg^}"
+            # Normalize GitHub merge commits: replace "Merge pull request #XX from ..." with PR title
+            if [[ $msg =~ ^Merge[[:space:]]pull[[:space:]]request[[:space:]]#([0-9]+)[[:space:]]from ]]; then
+              pr_num="${BASH_REMATCH[1]}"
+              pr_title=$(gh api repos/maptoolkit/$REPO/pulls/$pr_num -q '.title' 2>/dev/null || echo "")
+              [ -n "$pr_title" ] && msg="${pr_title^} #${pr_num}"
+            fi
             if [[ $msg =~ \#([0-9]+) ]]; then
               pr_num="${BASH_REMATCH[1]}"
               author=$(gh api repos/maptoolkit/$REPO/pulls/$pr_num -q '.user.login' 2>/dev/null || echo "")
@@ -60,7 +66,7 @@ jobs:
             else
               ENTRIES="$ENTRIES\n- $msg [$sha](https://github.com/maptoolkit/$REPO/commit/$sha)"
             fi
-          done < <(git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=format:"%s|%h" --no-merges)
+          done < <(git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=format:"%s|%h" --first-parent)
 
           [ -z "$ENTRIES" ] && ENTRIES="\n- (no changes)"
 
