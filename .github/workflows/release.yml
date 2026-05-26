@@ -71,6 +71,10 @@ jobs:
             printf "%b" "$ENTRY"
             echo ""
             echo "EOF"
+            echo "notes<<EOF"
+            printf "%b" "$ENTRIES"
+            echo ""
+            echo "EOF"
           } >> $GITHUB_OUTPUT
 
       - name: Update CHANGELOG.md
@@ -98,4 +102,4 @@ jobs:
         run: |
           gh release create "${{ steps.changelog.outputs.tag }}" \
             --title "${{ steps.changelog.outputs.tag }}" \
-            --notes "${{ steps.changelog.outputs.entry }}"
+            --notes "${{ steps.changelog.outputs.notes }}"
