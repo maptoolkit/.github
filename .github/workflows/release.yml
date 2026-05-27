@@ -54,29 +54,13 @@ jobs:
           TAG="v${VERSION#v}"
           DATE=$(date +%Y-%m-%d)
           REPO="${{ github.event.repository.name }}"
-
-          echo "=== DEBUG INFO ==="
-          echo "All tags matching 'v*':"
-          git tag --list 'v*' | sort -V | tail -10
-          echo ""
-
           PREV_TAG=$(git tag --list 'v*' | sort -V | tail -1)
-          echo "PREV_TAG = $PREV_TAG"
-          echo "HEAD = $(git rev-parse HEAD)"
-          echo "PREV_TAG commit = $(git rev-list -n 1 $PREV_TAG 2>/dev/null || echo 'TAG NOT FOUND')"
-          echo ""
-          echo "Git log between PREV_TAG and HEAD:"
-          git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=format:"%s|%h" --first-parent || echo "git log returned: $?"
-          echo ""
-          echo "=== END DEBUG ==="
 
           ENTRIES=""
           GIT_LOG_OUTPUT=$(git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=format:"%s|%h" --first-parent)
-          echo "DEBUG: GIT_LOG_OUTPUT length = ${#GIT_LOG_OUTPUT}"
 
           while IFS='|' read -r msg sha; do
             [ -z "$msg" ] && continue
-            echo "DEBUG: Processing msg='$msg' sha='$sha'"
             msg="${msg^}"
             # Normalize GitHub merge commits: replace "Merge pull request #XX from ..." with PR title
             if [[ $msg =~ ^Merge[[:space:]]pull[[:space:]]request[[:space:]]#([0-9]+)[[:space:]]from ]]; then
@@ -97,7 +81,6 @@ jobs:
               ENTRIES="$ENTRIES\n- $msg [$sha](https://github.com/maptoolkit/$REPO/commit/$sha)"
             fi
           done <<< "$GIT_LOG_OUTPUT"
-          echo "DEBUG: ENTRIES = '$ENTRIES'"
 
           [ -z "$ENTRIES" ] && ENTRIES="\n- (no changes)"
 
