@@ -54,7 +54,21 @@ jobs:
           TAG="v${VERSION#v}"
           DATE=$(date +%Y-%m-%d)
           REPO="${{ github.event.repository.name }}"
+
+          echo "=== DEBUG INFO ==="
+          echo "All tags matching 'v*':"
+          git tag --list 'v*' | sort -V | tail -10
+          echo ""
+
           PREV_TAG=$(git tag --list 'v*' | sort -V | tail -1)
+          echo "PREV_TAG = $PREV_TAG"
+          echo "HEAD = $(git rev-parse HEAD)"
+          echo "PREV_TAG commit = $(git rev-list -n 1 $PREV_TAG 2>/dev/null || echo 'TAG NOT FOUND')"
+          echo ""
+          echo "Git log between PREV_TAG and HEAD:"
+          git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=format:"%s|%h" --first-parent || echo "git log returned: $?"
+          echo ""
+          echo "=== END DEBUG ==="
 
           ENTRIES=""
           while IFS='|' read msg sha; do
