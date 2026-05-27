@@ -71,7 +71,12 @@ jobs:
           echo "=== END DEBUG ==="
 
           ENTRIES=""
-          while IFS='|' read msg sha; do
+          GIT_LOG_OUTPUT=$(git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=format:"%s|%h" --first-parent)
+          echo "DEBUG: GIT_LOG_OUTPUT length = ${#GIT_LOG_OUTPUT}"
+
+          while IFS='|' read -r msg sha; do
+            [ -z "$msg" ] && continue
+            echo "DEBUG: Processing msg='$msg' sha='$sha'"
             msg="${msg^}"
             # Normalize GitHub merge commits: replace "Merge pull request #XX from ..." with PR title
             if [[ $msg =~ ^Merge[[:space:]]pull[[:space:]]request[[:space:]]#([0-9]+)[[:space:]]from ]]; then
@@ -91,7 +96,8 @@ jobs:
             else
               ENTRIES="$ENTRIES\n- $msg [$sha](https://github.com/maptoolkit/$REPO/commit/$sha)"
             fi
-          done < <(git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=format:"%s|%h" --first-parent)
+          done <<< "$GIT_LOG_OUTPUT"
+          echo "DEBUG: ENTRIES = '$ENTRIES'"
 
           [ -z "$ENTRIES" ] && ENTRIES="\n- (no changes)"
 
