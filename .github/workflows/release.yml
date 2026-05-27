@@ -24,7 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          repository: ${{ github.event.repository.full_name }}
+          ref: ${{ github.ref }}
           fetch-depth: 0
+          fetch-tags: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Validate input
