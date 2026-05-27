@@ -10,6 +10,7 @@ on:
 
 jobs:
   lint-dockerfiles:
+    name: Lint Dockerfile(s)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:

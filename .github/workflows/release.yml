@@ -14,6 +14,7 @@ on:
 
 jobs:
   release:
+    name: Prepare Release
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.changelog.outputs.tag }}
