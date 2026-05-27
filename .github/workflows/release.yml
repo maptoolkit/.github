@@ -54,7 +54,7 @@ jobs:
           TAG="v${VERSION#v}"
           DATE=$(date +%Y-%m-%d)
           REPO="${{ github.event.repository.name }}"
-          PREV_TAG=$(git tag --sort=-v:refname --list 'v*' | head -1)
+          PREV_TAG=$(git tag --list 'v*' | sort -V | tail -1)
 
           ENTRIES=""
           while IFS='|' read msg sha; do
