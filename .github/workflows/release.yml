@@ -120,6 +120,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          NOTES_FILE="/tmp/release-notes-$(date +%s).txt"
+          printf "%b" "${{ steps.changelog.outputs.notes }}" > "$NOTES_FILE"
           gh release create "${{ steps.changelog.outputs.tag }}" \
             --title "${{ steps.changelog.outputs.tag }}" \
-            --notes "${{ steps.changelog.outputs.notes }}"
+            --notes-file "$NOTES_FILE"
