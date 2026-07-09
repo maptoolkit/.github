@@ -67,11 +67,7 @@ jobs:
             exit 0
           fi
 
-          # Colored report into the Actions log — --color=always forces ANSI
-          # even without a TTY, which the log viewer renders.
-          echo "::group::npm audit (colored)"
           npm audit --audit-level=${{ inputs.audit-level }} $OMIT_FLAG --color=always || true
-          echo "::endgroup::"
 
           # Plain (no-ANSI) copy for the job summary code fence.
           echo '```' >> "$GITHUB_STEP_SUMMARY"
