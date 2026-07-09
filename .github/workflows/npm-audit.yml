@@ -1,0 +1,80 @@
+name: NPM Audit (Info Only)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: '24'
+        description: 'Node.js version to use'
+      working-directory:
+        type: string
+        default: '.'
+        description: 'Directory containing package.json / package-lock.json'
+      audit-level:
+        type: string
+        default: 'low'
+        description: 'Minimum severity to report (low|moderate|high|critical)'
+      omit:
+        type: string
+        default: ''
+        description: 'Dependency types to omit, e.g. "dev" (comma-separated)'
+      fail-on-severity:
+        type: string
+        default: ''
+        description: 'If set (low|moderate|high|critical), the job fails when a vuln at or above this level exists. Empty = info only.'
+
+jobs:
+  npm-audit:
+    name: NPM Audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Run npm audit
+        run: |
+          OMIT_FLAG=""
+          if [ -n "${{ inputs.omit }}" ]; then
+            IFS=',' read -ra TYPES <<< "${{ inputs.omit }}"
+            for t in "${TYPES[@]}"; do OMIT_FLAG="$OMIT_FLAG --omit=$t"; done
+          fi
+
+          echo "## 🔒 npm audit report" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+
+          # Human-readable report into the job summary + log (non-fatal)
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npm audit --audit-level=${{ inputs.audit-level }} $OMIT_FLAG 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          # Machine-readable counts for the gate + a compact summary line
+          npm audit --json $OMIT_FLAG > audit.json 2>/dev/null || true
+          node -e '
+            const fs = require("fs");
+            let v = { info:0, low:0, moderate:0, high:0, critical:0, total:0 };
+            try { v = JSON.parse(fs.readFileSync("audit.json")).metadata.vulnerabilities; } catch (e) {}
+            const line = `**Summary:** ${v.total} total — 🔴 ${v.critical} critical, 🟠 ${v.high} high, 🟡 ${v.moderate} moderate, ⚪ ${v.low} low`;
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "\n" + line + "\n");
+            console.log(line);
+
+            const gate = "${{ inputs.fail-on-severity }}";
+            if (gate) {
+              const order = ["low","moderate","high","critical"];
+              const idx = order.indexOf(gate);
+              const offending = order.slice(idx).reduce((n, k) => n + (v[k] || 0), 0);
+              if (offending > 0) {
+                console.error(`::error::${offending} vulnerabilit(y|ies) at or above "${gate}"`);
+                process.exit(1);
+              }
+            }
+          '
