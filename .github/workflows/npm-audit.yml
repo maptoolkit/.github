@@ -52,6 +52,21 @@ jobs:
           echo "## 🔒 npm audit report" >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
 
+          # Ensure a lockfile exists — some repos gitignore it. Generate a
+          # best-effort one without installing or running lifecycle scripts.
+          if [ ! -f package-lock.json ] && [ ! -f npm-shrinkwrap.json ]; then
+            echo "No lockfile found — generating one (best effort)…"
+            npm install --package-lock-only --ignore-scripts 2>&1 | tail -20 || true
+          fi
+
+          # If we still have no lockfile (e.g. private deps that need registry
+          # auth), skip gracefully instead of crashing with ENOLOCK.
+          if [ ! -f package-lock.json ] && [ ! -f npm-shrinkwrap.json ]; then
+            echo "::warning::No lockfile present and one could not be generated (private deps?) — skipping audit."
+            echo '> ⚠️ No lockfile present and one could not be generated — audit skipped.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           # Human-readable report into the job summary + log (non-fatal)
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           npm audit --audit-level=${{ inputs.audit-level }} $OMIT_FLAG 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || true
