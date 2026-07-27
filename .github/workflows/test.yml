@@ -21,6 +21,14 @@ jobs:
     name: Test (node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
+    # A test run has no business taking longer than this — the slowest job
+    # across all services currently finishes in under 30 seconds. Without a
+    # limit, a dependency without a prebuilt binary for the target Node version
+    # gets compiled from source and the job hangs until the 6 hour default,
+    # burning CI minutes and leaving the check pending. continue-on-error
+    # covers a failure, not a hang.
+    timeout-minutes: 10
+
     permissions:
       contents: read
       packages: read
