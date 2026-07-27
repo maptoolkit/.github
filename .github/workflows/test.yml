@@ -1,0 +1,61 @@
+name: Test
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        required: true
+        description: 'Primary Node.js version to test on (matches the service Dockerfile)'
+      node-version-next:
+        type: string
+        default: '26'
+        description: 'Forward-looking Node.js version, run with continue-on-error. Empty = skip.'
+      working-directory:
+        type: string
+        default: '.'
+        description: 'Directory containing package.json / package-lock.json'
+
+jobs:
+  test:
+    name: Test (node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ${{ fromJSON(inputs.node-version-next == '' && format('["{0}"]', inputs.node-version) || format('["{0}","{1}"]', inputs.node-version, inputs.node-version-next)) }}
+
+    # The forward-looking version is informational only — it must never block a merge.
+    continue-on-error: ${{ matrix.node-version == inputs.node-version-next }}
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Configure private registry
+        # Most services depend on @maptoolkit/* packages from GitHub Packages.
+        # Written to ~/.npmrc (like the Dockerfiles do) so it never lands in the
+        # working tree.
+        run: |
+          echo "@maptoolkit:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
