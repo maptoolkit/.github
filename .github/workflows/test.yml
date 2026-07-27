@@ -59,3 +59,38 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Coverage report
+        # Only on the primary version — running it in every matrix job would
+        # produce several different numbers for the same commit. Informational:
+        # a coverage problem must not turn a green test run red.
+        if: matrix.node-version == inputs.node-version
+        continue-on-error: true
+        run: |
+          if [ "$(npm pkg get scripts.coverage)" = "{}" ]; then
+            echo "::warning::No coverage script defined — skipping."
+            echo '> ⚠️ No `coverage` script defined — skipped.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "## 📊 Coverage report" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+
+          npm run coverage --silent 2>&1 | tee coverage-output.txt
+
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat coverage-output.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          # Compact headline from the machine-readable summary, if present.
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e '
+              const fs = require("fs");
+              const t = JSON.parse(fs.readFileSync("coverage/coverage-summary.json")).total;
+              const line = `**Summary:** branches ${t.branches.pct}% (${t.branches.covered}/${t.branches.total}) — ` +
+                `lines ${t.lines.pct}% (${t.lines.covered}/${t.lines.total}) — ` +
+                `functions ${t.functions.pct}% (${t.functions.covered}/${t.functions.total})`;
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "\n" + line + "\n");
+              console.log(line);
+            '
+          fi
