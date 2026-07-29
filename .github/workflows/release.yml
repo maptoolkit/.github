@@ -31,9 +31,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Validate input
+        env:
+          RELEASE_TYPE: ${{ inputs.type }}
         run: |
-          if [[ ! "${{ inputs.type }}" =~ ^(patch|minor|major)$ ]]; then
-            echo "Invalid release type: '${{ inputs.type }}' — must be patch, minor or major"
+          if [[ ! "$RELEASE_TYPE" =~ ^(patch|minor|major)$ ]]; then
+            echo "Invalid release type: '$RELEASE_TYPE' — must be patch, minor or major"
             exit 1
           fi
 
@@ -43,7 +45,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Bump version
-        run: npm version ${{ inputs.type }} --no-git-tag-version
+        env:
+          RELEASE_TYPE: ${{ inputs.type }}
+        run: npm version "$RELEASE_TYPE" --no-git-tag-version
 
       - name: Generate changelog entry
         id: changelog
@@ -54,10 +58,17 @@ jobs:
           TAG="v${VERSION#v}"
           DATE=$(date +%Y-%m-%d)
           REPO="${{ github.event.repository.name }}"
-          PREV_TAG=$(git tag --list 'v*' | sort -V | tail -1)
+          # Restrict to well-formed v<digit> tags and let git do the version sort:
+          # `sort -V` ranks a malformed tag like "v.0.23.1" *above* "v1.14.42",
+          # which picks an ancient tag as PREV_TAG and dumps the whole history
+          # into the changelog.
+          PREV_TAG=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -1)
 
           ENTRIES=""
-          GIT_LOG_OUTPUT=$(git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=format:"%s|%h" --first-parent)
+          # --no-merges, not --first-parent: with a "Merge branch 'main'" sync
+          # merge the real commits sit on the second parent, so --first-parent
+          # reports only the merge itself and hides the actual work.
+          GIT_LOG_OUTPUT=$(git log "${PREV_TAG:+$PREV_TAG..}HEAD" --pretty=tformat:"%s|%h" --no-merges)
 
           while IFS='|' read -r msg sha; do
             [ -z "$msg" ] && continue
@@ -71,7 +82,9 @@ jobs:
             if [[ $msg =~ \#([0-9]+) ]]; then
               pr_num="${BASH_REMATCH[1]}"
               author=$(gh api repos/maptoolkit/$REPO/pulls/$pr_num -q '.user.login' 2>/dev/null || echo "")
-              msg_clean=$(echo "$msg" | sed -E "s/ ?#[0-9]+//")
+              # Strip "(#12)" as a whole — squash-merge subjects carry the PR
+              # number in parens, and removing only "#12" leaves a stray "()".
+              msg_clean=$(echo "$msg" | sed -E "s/ ?\(#[0-9]+\)//; s/ ?#[0-9]+//; s/[[:space:]]+$//")
               if [ -n "$author" ]; then
                 ENTRIES="$ENTRIES\n- $msg_clean by [@$author](https://github.com/$author) in [#$pr_num](https://github.com/maptoolkit/$REPO/pull/$pr_num)"
               else
@@ -98,30 +111,39 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Update CHANGELOG.md
+        # Pass the entry through the environment, never inline: a commit message
+        # containing a double quote would otherwise close the shell string and
+        # the "(" of a markdown link becomes a syntax error.
+        env:
+          ENTRY: ${{ steps.changelog.outputs.entry }}
         run: |
           if [ -f CHANGELOG.md ]; then
             TEMP=$(mktemp)
             head -1 CHANGELOG.md > "$TEMP"
-            printf "\n%b\n" "${{ steps.changelog.outputs.entry }}" >> "$TEMP"
+            printf "\n%b\n" "$ENTRY" >> "$TEMP"
             tail -n +2 CHANGELOG.md >> "$TEMP"
             mv "$TEMP" CHANGELOG.md
           else
-            printf "# Changelog\n\n%b\n" "${{ steps.changelog.outputs.entry }}" > CHANGELOG.md
+            printf "# Changelog\n\n%b\n" "$ENTRY" > CHANGELOG.md
           fi
 
       - name: Commit, tag and push
+        env:
+          TAG: ${{ steps.changelog.outputs.tag }}
         run: |
           git add package.json CHANGELOG.md
-          git commit -m "${{ steps.changelog.outputs.tag }}"
-          git tag "${{ steps.changelog.outputs.tag }}"
+          git commit -m "$TAG"
+          git tag "$TAG"
           git push origin main --tags
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.changelog.outputs.tag }}
+          NOTES: ${{ steps.changelog.outputs.notes }}
         run: |
-          NOTES_FILE="/tmp/release-notes-$(date +%s).txt"
-          printf "%b" "${{ steps.changelog.outputs.notes }}" > "$NOTES_FILE"
-          gh release create "${{ steps.changelog.outputs.tag }}" \
-            --title "${{ steps.changelog.outputs.tag }}" \
+          NOTES_FILE=$(mktemp)
+          printf "%b" "$NOTES" > "$NOTES_FILE"
+          gh release create "$TAG" \
+            --title "$TAG" \
             --notes-file "$NOTES_FILE"
