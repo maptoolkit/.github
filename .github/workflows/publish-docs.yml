@@ -7,6 +7,10 @@ on:
         description: "Markdown file in the calling repo to publish"
         type: string
         default: "./README.md"
+      front-matter:
+        description: "Hugo front matter (YAML, without the --- delimiters) to prepend. Keeps it out of the README on GitHub."
+        type: string
+        default: ""
       docs-path:
         description: "Target file in maptoolkit/docs, e.g. docs/content/third-party-libraries/maplibre/style-control.md"
         type: string
@@ -36,17 +40,36 @@ jobs:
         env:
           SOURCE_PATH: ${{ inputs.source-path }}
           DOCS_PATH: ${{ inputs.docs-path }}
+          FRONT_MATTER: ${{ inputs.front-matter }}
         run: |
-          mkdir -p "docs-repo/$(dirname "$DOCS_PATH")"
-          # Hugo renders the front matter title as H1, so drop the README's own H1 to avoid a duplicate heading
-          awk '
+          target="docs-repo/$DOCS_PATH"
+          mkdir -p "$(dirname "$target")"
+          : > "$target"
+          has_title=0
+          if [ -n "$FRONT_MATTER" ]; then
+            if [ "$(head -n 1 "$SOURCE_PATH")" = "---" ]; then
+              echo "::error::$SOURCE_PATH already has front matter, remove it or drop the front-matter input"
+              exit 1
+            fi
+            printf -- '---\n%s\n---\n\n' "${FRONT_MATTER%$'\n'}" > "$target"
+            if printf '%s\n' "$FRONT_MATTER" | grep -q '^title:'; then has_title=1; fi
+          fi
+          # Hugo renders the front matter title as H1, so drop the README's own H1 to avoid a duplicate heading.
+          # GitHub doesn't render iframes, so the demo embed is only added to the docs page, below the first [Live demo](...) link.
+          awk -v has_title="$has_title" '
             NR == 1 && $0 == "---" { fm = 1; print; next }
             fm == 1 { if ($0 == "---") fm = 2; else if ($0 ~ /^title:/) has_title = 1; print; next }
             /^(```|~~~)/ { fence = !fence }
             has_title && !dropped && !fence && /^# / { dropped = 1; skip_blank = 1; next }
             skip_blank && /^[[:space:]]*$/ { skip_blank = 0; next }
             { skip_blank = 0; print }
-          ' "$SOURCE_PATH" > "docs-repo/$DOCS_PATH"
+            !embedded && !fence && match(tolower($0), /\[live demo\]\([^)]+\)/) {
+              embedded = 1
+              url = substr($0, RSTART + 12, RLENGTH - 13)
+              print ""
+              print "<iframe src=\"" url "\" title=\"Live demo\" style=\"width:100%;height:500px;border:none;border-radius:6px;\"></iframe>"
+            }
+          ' "$SOURCE_PATH" >> "$target"
 
       - name: Create or update pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
