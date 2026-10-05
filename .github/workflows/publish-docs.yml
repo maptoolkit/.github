@@ -38,7 +38,15 @@ jobs:
           DOCS_PATH: ${{ inputs.docs-path }}
         run: |
           mkdir -p "docs-repo/$(dirname "$DOCS_PATH")"
-          cp "$SOURCE_PATH" "docs-repo/$DOCS_PATH"
+          # Hugo renders the front matter title as H1, so drop the README's own H1 to avoid a duplicate heading
+          awk '
+            NR == 1 && $0 == "---" { fm = 1; print; next }
+            fm == 1 { if ($0 == "---") fm = 2; else if ($0 ~ /^title:/) has_title = 1; print; next }
+            /^(```|~~~)/ { fence = !fence }
+            has_title && !dropped && !fence && /^# / { dropped = 1; skip_blank = 1; next }
+            skip_blank && /^[[:space:]]*$/ { skip_blank = 0; next }
+            { skip_blank = 0; print }
+          ' "$SOURCE_PATH" > "docs-repo/$DOCS_PATH"
 
       - name: Create or update pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
