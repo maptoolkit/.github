@@ -1,0 +1,56 @@
+name: Publish Docs
+
+on:
+  workflow_call:
+    inputs:
+      source-path:
+        description: "Markdown file in the calling repo to publish"
+        type: string
+        default: "./README.md"
+      docs-path:
+        description: "Target file in maptoolkit/docs, e.g. docs/content/third-party-libraries/maplibre/style-control.md"
+        type: string
+        required: true
+    secrets:
+      DOCS_REPO_TOKEN:
+        required: true
+
+jobs:
+  publish-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Checkout docs repo
+        uses: actions/checkout@v6
+        with:
+          repository: maptoolkit/docs
+          path: docs-repo
+          token: ${{ secrets.DOCS_REPO_TOKEN }}
+
+      - name: Write files
+        env:
+          SOURCE_PATH: ${{ inputs.source-path }}
+          DOCS_PATH: ${{ inputs.docs-path }}
+        run: |
+          mkdir -p "docs-repo/$(dirname "$DOCS_PATH")"
+          cp "$SOURCE_PATH" "docs-repo/$DOCS_PATH"
+
+      - name: Create or update pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          path: docs-repo
+          token: ${{ secrets.DOCS_REPO_TOKEN }}
+          add-paths: ${{ inputs.docs-path }}
+          branch: docs/${{ github.event.repository.name }}
+          delete-branch: true
+          commit-message: "chore: update ${{ github.event.repository.name }} docs (${{ github.ref_name }})"
+          title: "chore: update ${{ github.event.repository.name }} docs"
+          body: |
+            Automatically generated from ${{ github.repository }}@${{ github.sha }}.
+          author: maptoolkit-ops <technik@maptoolkit.com>
+          committer: maptoolkit-ops <technik@maptoolkit.com>
