@@ -41,23 +41,36 @@ jobs:
           SOURCE_PATH: ${{ inputs.source-path }}
           DOCS_PATH: ${{ inputs.docs-path }}
           FRONT_MATTER: ${{ inputs.front-matter }}
+          SOURCE_REPO: ${{ github.repository }}
         run: |
           target="docs-repo/$DOCS_PATH"
           mkdir -p "$(dirname "$target")"
           : > "$target"
           has_title=0
+          # Notice for editors in maptoolkit/docs. As a YAML comment in the front matter it never reaches the rendered page or its HTML source.
+          # The front-matter input is passed in by each repo's .github/workflows/publish-docs.yml (github.workflow_ref would point to release.yml instead).
+          NOTICE="#
+          # This file is generated from https://github.com/$SOURCE_REPO/blob/HEAD/${SOURCE_PATH#./}
+          # by the publish-docs workflow and overwritten on every release."
+          if [ -n "$FRONT_MATTER" ]; then
+            NOTICE="$NOTICE
+          # The front matter is defined in https://github.com/$SOURCE_REPO/blob/HEAD/.github/workflows/publish-docs.yml"
+          fi
+          export NOTICE="$NOTICE
+          # Please don't edit it here, change the source instead.
+          #"
           if [ -n "$FRONT_MATTER" ]; then
             if [ "$(head -n 1 "$SOURCE_PATH")" = "---" ]; then
               echo "::error::$SOURCE_PATH already has front matter, remove it or drop the front-matter input"
               exit 1
             fi
-            printf -- '---\n%s\n---\n\n' "${FRONT_MATTER%$'\n'}" > "$target"
+            printf -- '---\n%s\n%s\n---\n\n' "$NOTICE" "${FRONT_MATTER%$'\n'}" > "$target"
             if printf '%s\n' "$FRONT_MATTER" | grep -q '^title:'; then has_title=1; fi
           fi
           # Hugo renders the front matter title as H1, so drop the README's own H1 to avoid a duplicate heading.
           # GitHub doesn't render iframes, so the demo embed is only added to the docs page, below the first [Live demo](...) link.
           awk -v has_title="$has_title" '
-            NR == 1 && $0 == "---" { fm = 1; print; next }
+            NR == 1 && $0 == "---" { fm = 1; print; print ENVIRON["NOTICE"]; next }
             fm == 1 { if ($0 == "---") fm = 2; else if ($0 ~ /^title:/) has_title = 1; print; next }
             /^(```|~~~)/ { fence = !fence }
             has_title && !dropped && !fence && /^# / { dropped = 1; skip_blank = 1; next }
