@@ -7,9 +7,18 @@ on:
         type: string
         default: "22"
         description: "Node.js version to use"
+      registry-url:
+        type: string
+        default: "https://registry.npmjs.org"
+        description: "npm registry to publish to (e.g. https://npm.pkg.github.com for GitHub Packages)"
+      scope:
+        type: string
+        default: ""
+        description: "Package scope to authenticate for the registry (e.g. '@maptoolkit'), required for GitHub Packages"
     secrets:
       NPM_TOKEN:
-        required: true
+        required: false
+        description: "Registry token; falls back to GITHUB_TOKEN (sufficient for GitHub Packages)"
     outputs:
       published:
         description: "'true' if changesets published at least one package to npm"
@@ -18,9 +27,9 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
+    # No job-level permissions: they are inherited from the caller, which must grant
+    # contents: write and pull-requests: write (plus packages: write for GitHub Packages).
+    # Declaring packages: write here would break callers that don't grant it.
     outputs:
       # changesets/action only detects publishes via "New tag:" lines, which @changesets/cli v3 no longer prints, so rely on the created tags instead.
       published: ${{ steps.tags.outputs.published }}
@@ -32,7 +41,8 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           cache: npm
-          registry-url: https://registry.npmjs.org
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.scope }}
       - run: npm ci
       - name: Create release PR or publish to npm
         id: changesets
@@ -41,7 +51,7 @@ jobs:
           publish: npm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || secrets.GITHUB_TOKEN }}
       - name: Push release tags and create GitHub releases
         id: tags
         run: |
