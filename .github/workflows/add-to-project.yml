@@ -15,10 +15,12 @@ jobs:
     steps:
       # The project's built-in "Item added to project" workflow sets the status,
       # so this step only adds the item.
-      # GITHUB_TOKEN cannot write to org projects, hence the machine-user PAT
-      # (needs the "project" scope). Callers pass it with `secrets: inherit`.
+      # GITHUB_TOKEN cannot write to org projects, hence a fine-grained PAT of
+      # the machine user (org permission Projects: read & write, repository
+      # permissions Issues and Pull requests: read-only). Callers pass it with
+      # `secrets: inherit`.
       - name: Add issue to project
         uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
         with:
           project-url: ${{ inputs.project-url }}
-          github-token: ${{ secrets.MAPTOOLKIT_OPS_PAT }}
+          github-token: ${{ secrets.MAPTOOLKIT_OPS_PROJECTS }}
