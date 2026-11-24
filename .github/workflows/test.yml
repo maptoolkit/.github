@@ -19,11 +19,15 @@ on:
         type: string
         default: ''
         description: 'Space-separated apt packages the tests need (e.g. gdal-bin). Empty = install nothing.'
+      runs-on:
+        type: string
+        default: 'ubuntu-latest'
+        description: 'Runner image. Pin it (e.g. ubuntu-24.04) when a native dependency is built for the OS of the service image and needs its library versions.'
 
 jobs:
   test:
     name: Test (node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
 
     # A test run has no business taking longer than this — the slowest job
     # across all services currently finishes in under 30 seconds. Without a
